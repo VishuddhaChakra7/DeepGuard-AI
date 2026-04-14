@@ -1,0 +1,27 @@
+# DeepGuard AI — Requirements
+# Install: pip install -r requirements.txt
+
+# ── Core ML ──────────────────────────────────────────────────────────────────
+torch>=2.2.0
+torchvision>=0.17.0
+timm>=0.9.0
+
+# ── Data / Science ────────────────────────────────────────────────────────────
+pandas>=2.0.0
+numpy>=1.24.0
+scikit-learn>=1.2.0
+Pillow>=9.0.0
+
+# ── Visualisation (optional, used in Colab notebook & GradCAM) ───────────────
+matplotlib>=3.7.0
+seaborn>=0.12.0
+grad-cam>=1.4.8
+opencv-python-headless>=4.8.0
+
+# ── API ───────────────────────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9
+
+# ── Utilities ─────────────────────────────────────────────────────────────────
+tqdm>=4.65.0

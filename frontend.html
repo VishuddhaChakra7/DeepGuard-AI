@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DeepGuard AI — Deepfake Detector</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #060810;
+    --bg2: #0d1018;
+    --bg3: #131620;
+    --surface: #1a1e2c;
+    --surface2: #222736;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --accent: #00e5ff;
+    --accent2: #7c3aed;
+    --real: #22c55e;
+    --fake: #ef4444;
+    --text: #f0f2f8;
+    --muted: #6b7280;
+    --mono: 'Space Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Grid bg ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+  }
+
+  .page { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 2.5rem 1.5rem 4rem; }
+
+  /* ── Header ── */
+  header { text-align: center; margin-bottom: 3rem; }
+
+  .logo {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.18em;
+    color: var(--accent); text-transform: uppercase;
+    border: 1px solid rgba(0,229,255,0.25);
+    padding: 6px 14px; border-radius: 3px;
+    margin-bottom: 1.5rem;
+  }
+
+  .logo-dot { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: blink 1.8s ease-in-out infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.15} }
+
+  h1 {
+    font-family: var(--mono); font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 700; line-height: 1.1;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent2) 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 0.75rem;
+  }
+
+  .tagline { color: var(--muted); font-size: 0.95rem; letter-spacing: 0.02em; }
+
+  /* ── Upload zone ── */
+  .upload-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: 16px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--bg2);
+    position: relative;
+    overflow: hidden;
+  }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: rgba(0,229,255,0.03); }
+  .upload-zone.drag::after {
+    content: '';
+    position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, rgba(0,229,255,0.06) 0%, transparent 70%);
+  }
+
+  .upload-icon {
+    width: 56px; height: 56px; margin: 0 auto 1.25rem;
+    border: 1.5px solid var(--border2);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--surface);
+  }
+
+  .upload-icon svg { width: 26px; height: 26px; stroke: var(--accent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+  .upload-title { font-size: 1.05rem; font-weight: 500; margin-bottom: 0.4rem; }
+  .upload-sub { font-size: 0.82rem; color: var(--muted); }
+
+  #file-input { display: none; }
+
+  .btn-upload {
+    display: inline-block; margin-top: 1.25rem;
+    padding: 9px 22px; border-radius: 6px;
+    border: 1px solid rgba(0,229,255,0.4);
+    background: transparent;
+    color: var(--accent); font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.1em;
+    cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .btn-upload:hover { background: rgba(0,229,255,0.08); }
+
+  /* ── Preview ── */
+  #preview-wrap { display: none; margin-top: 1.5rem; }
+
+  .preview-card {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 1.5rem; align-items: start;
+  }
+
+  @media (max-width: 640px) { .preview-card { grid-template-columns: 1fr; } }
+
+  .img-panel {
+    border-radius: 12px; overflow: hidden;
+    border: 1px solid var(--border);
+    aspect-ratio: 1/1;
+    background: var(--bg3);
+    position: relative;
+  }
+
+  #preview-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+  .img-label {
+    position: absolute; bottom: 10px; left: 10px;
+    font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.1em;
+    padding: 3px 8px; border-radius: 3px;
+    background: rgba(6,8,16,0.75); backdrop-filter: blur(4px);
+    color: var(--muted);
+  }
+
+  /* ── Result panel ── */
+  .result-panel { display: flex; flex-direction: column; gap: 1rem; }
+
+  .verdict-box {
+    border-radius: 12px; padding: 1.5rem;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    transition: border-color 0.4s;
+  }
+  .verdict-box.real { border-color: rgba(34,197,94,0.35); background: rgba(34,197,94,0.05); }
+  .verdict-box.fake { border-color: rgba(239,68,68,0.35); background: rgba(239,68,68,0.05); }
+
+  .verdict-label { font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.15em; color: var(--muted); margin-bottom: 0.4rem; }
+
+  .verdict-value {
+    font-family: var(--mono); font-size: 2.2rem; font-weight: 700;
+    line-height: 1;
+  }
+  .verdict-value.real { color: var(--real); }
+  .verdict-value.fake { color: var(--fake); }
+
+  .confidence-pct { font-family: var(--mono); font-size: 0.85rem; color: var(--muted); margin-top: 4px; }
+
+  /* ── Bars ── */
+  .bars { display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .bar-row { display: flex; flex-direction: column; gap: 5px; }
+  .bar-row-label { display: flex; justify-content: space-between; font-size: 0.78rem; }
+  .bar-row-label span:first-child { color: var(--muted); }
+  .bar-row-label span:last-child { font-family: var(--mono); font-size: 0.72rem; }
+
+  .bar-track { height: 5px; background: var(--surface2); border-radius: 99px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 99px; width: 0; transition: width 0.9s cubic-bezier(0.22,1,0.36,1); }
+  .bar-fill.real { background: var(--real); }
+  .bar-fill.fake { background: var(--fake); }
+
+  /* ── Meta ── */
+  .meta-row {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;
+  }
+  .meta-cell {
+    padding: 0.75rem; border-radius: 8px;
+    background: var(--bg3); border: 1px solid var(--border);
+  }
+  .meta-cell-label { font-family: var(--mono); font-size: 0.6rem; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 3px; }
+  .meta-cell-value { font-family: var(--mono); font-size: 0.85rem; color: var(--text); }
+
+  /* ── Loading ── */
+  #loading { display: none; text-align: center; padding: 2rem 0; }
+
+  .scanner {
+    width: 80px; height: 80px; margin: 0 auto 1rem;
+    border: 2px solid var(--border2);
+    border-radius: 50%;
+    border-top-color: var(--accent);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .loading-text { font-family: var(--mono); font-size: 0.78rem; color: var(--accent); letter-spacing: 0.12em; animation: pulse 1.4s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* ── Error ── */
+  #error-msg {
+    display: none; margin-top: 1rem;
+    padding: 0.85rem 1rem; border-radius: 8px;
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25);
+    font-size: 0.85rem; color: #fca5a5;
+  }
+
+  /* ── Reset ── */
+  .btn-reset {
+    display: none; margin-top: 1.25rem; width: 100%;
+    padding: 10px; border-radius: 8px;
+    border: 1px solid var(--border2);
+    background: transparent;
+    color: var(--muted); font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em;
+    cursor: pointer; transition: color 0.15s, border-color 0.15s;
+  }
+  .btn-reset:hover { color: var(--text); border-color: var(--border2); }
+
+  /* ── API status ── */
+  .status-bar {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.1em;
+    color: var(--muted); margin-top: 2rem;
+    padding: 0.6rem 1rem; border-radius: 6px;
+    background: var(--bg2); border: 1px solid var(--border);
+  }
+  .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); }
+  .status-dot.online { background: var(--real); }
+  .status-dot.offline { background: var(--fake); }
+
+  /* ── Footer ── */
+  footer { margin-top: 4rem; text-align: center; font-size: 0.75rem; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <div class="logo"><div class="logo-dot"></div>DeepGuard AI&nbsp;&nbsp;v2.0</div>
+    <h1>Deepfake Detector</h1>
+    <p class="tagline">EfficientNet-B4 · Real-time face authenticity analysis</p>
+  </header>
+
+  <!-- Upload zone -->
+  <div class="upload-zone" id="drop-zone">
+    <div class="upload-icon">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </div>
+    <div class="upload-title">Drop a face image here</div>
+    <div class="upload-sub">JPEG · PNG · WEBP · BMP &nbsp;·&nbsp; Max 10 MB</div>
+    <label class="btn-upload" for="file-input">Choose file</label>
+    <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,image/bmp"/>
+  </div>
+
+  <!-- Error -->
+  <div id="error-msg"></div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="scanner"></div>
+    <div class="loading-text">ANALYSING IMAGE...</div>
+  </div>
+
+  <!-- Preview + Result -->
+  <div id="preview-wrap">
+    <div class="preview-card">
+
+      <!-- Image -->
+      <div class="img-panel">
+        <img id="preview-img" src="" alt="Uploaded face"/>
+        <div class="img-label" id="img-label">ANALYSING</div>
+      </div>
+
+      <!-- Result -->
+      <div class="result-panel" id="result-panel">
+        <div class="verdict-box" id="verdict-box">
+          <div class="verdict-label">VERDICT</div>
+          <div class="verdict-value" id="verdict-value">—</div>
+          <div class="confidence-pct" id="confidence-pct"></div>
+        </div>
+
+        <div class="bars">
+          <div class="bar-row">
+            <div class="bar-row-label">
+              <span>Real probability</span>
+              <span id="real-pct">—</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill real" id="real-bar"></div></div>
+          </div>
+          <div class="bar-row">
+            <div class="bar-row-label">
+              <span>Fake probability</span>
+              <span id="fake-pct">—</span>
+            </div>
+            <div class="bar-track"><div class="bar-fill fake" id="fake-bar"></div></div>
+          </div>
+        </div>
+
+        <div class="meta-row">
+          <div class="meta-cell">
+            <div class="meta-cell-label">INFERENCE</div>
+            <div class="meta-cell-value" id="meta-ms">—</div>
+          </div>
+          <div class="meta-cell">
+            <div class="meta-cell-label">MODEL</div>
+            <div class="meta-cell-value">EfficientNet-B4</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <button class="btn-reset" id="btn-reset" onclick="reset()">↩ Analyse another image</button>
+  </div>
+
+  <!-- API Status -->
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Checking API…</span>
+    <span style="margin-left:auto; opacity:0.5">http://localhost:8000</span>
+  </div>
+
+  <footer>
+    <p>DeepGuard AI · <a href="http://localhost:8000/docs" target="_blank">API Docs</a> · Built with EfficientNet-B4 + FastAPI</p>
+  </footer>
+
+</div>
+
+<script>
+  const API = 'http://localhost:8000';
+
+  // ── Status check ────────────────────────────────────────────────────────
+  async function checkStatus() {
+    try {
+      const r = await fetch(API + '/health', { signal: AbortSignal.timeout(3000) });
+      const d = await r.json();
+      const dot = document.getElementById('status-dot');
+      const txt = document.getElementById('status-text');
+      if (d.status === 'ok' && d.model_loaded) {
+        dot.className = 'status-dot online';
+        txt.textContent = 'API online · Model loaded';
+      } else {
+        dot.className = 'status-dot offline';
+        txt.textContent = d.model_loaded ? 'API online · No model' : 'API online · Model not loaded';
+      }
+    } catch {
+      document.getElementById('status-dot').className = 'status-dot offline';
+      document.getElementById('status-text').textContent = 'API offline · Start server with uvicorn app:app';
+    }
+  }
+  checkStatus();
+  setInterval(checkStatus, 10000);
+
+  // ── Drag & drop ─────────────────────────────────────────────────────────
+  const zone = document.getElementById('drop-zone');
+
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('drag'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault(); zone.classList.remove('drag');
+    const f = e.dataTransfer.files[0];
+    if (f) handleFile(f);
+  });
+  zone.addEventListener('click', e => {
+    if (e.target.tagName !== 'LABEL' && e.target.tagName !== 'INPUT') {
+      document.getElementById('file-input').click();
+    }
+  });
+  document.getElementById('file-input').addEventListener('change', e => {
+    if (e.target.files[0]) handleFile(e.target.files[0]);
+  });
+
+  // ── Handle file ─────────────────────────────────────────────────────────
+  function handleFile(file) {
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/bmp'];
+    if (!allowed.includes(file.type)) { showError('Unsupported file type. Please use JPEG, PNG, WEBP, or BMP.'); return; }
+    if (file.size > 10 * 1024 * 1024) { showError('File too large. Maximum size is 10 MB.'); return; }
+
+    hideError();
+    showPreview(file);
+    analyse(file);
+  }
+
+  function showPreview(file) {
+    const reader = new FileReader();
+    reader.onload = e => {
+      document.getElementById('preview-img').src = e.target.result;
+      document.getElementById('img-label').textContent = file.name.length > 22 ? file.name.slice(0,20)+'…' : file.name;
+    };
+    reader.readAsDataURL(file);
+
+    document.getElementById('drop-zone').style.display = 'none';
+    document.getElementById('loading').style.display = 'block';
+    document.getElementById('preview-wrap').style.display = 'block';
+    document.getElementById('btn-reset').style.display = 'none';
+
+    // Reset verdict UI
+    const vb = document.getElementById('verdict-box');
+    vb.className = 'verdict-box';
+    document.getElementById('verdict-value').textContent = '—';
+    document.getElementById('verdict-value').className = 'verdict-value';
+    document.getElementById('confidence-pct').textContent = '';
+    document.getElementById('real-pct').textContent = '—';
+    document.getElementById('fake-pct').textContent = '—';
+    document.getElementById('real-bar').style.width = '0';
+    document.getElementById('fake-bar').style.width = '0';
+    document.getElementById('meta-ms').textContent = '—';
+  }
+
+  async function analyse(file) {
+    const fd = new FormData();
+    fd.append('file', file);
+
+    try {
+      const res = await fetch(API + '/predict', { method: 'POST', body: fd });
+
+      document.getElementById('loading').style.display = 'none';
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ detail: 'Unknown error' }));
+        showError(`Server error ${res.status}: ${err.detail || JSON.stringify(err)}`);
+        showReset();
+        return;
+      }
+
+      const d = await res.json();
+      renderResult(d);
+
+    } catch (err) {
+      document.getElementById('loading').style.display = 'none';
+      showError('Could not reach the API. Make sure the server is running at ' + API);
+      showReset();
+    }
+  }
+
+  function renderResult(d) {
+    const isReal = d.label === 'Real';
+
+    // Verdict
+    const vb = document.getElementById('verdict-box');
+    vb.className = 'verdict-box ' + (isReal ? 'real' : 'fake');
+
+    const vv = document.getElementById('verdict-value');
+    vv.textContent = d.label.toUpperCase();
+    vv.className = 'verdict-value ' + (isReal ? 'real' : 'fake');
+
+    document.getElementById('confidence-pct').textContent =
+      (d.confidence * 100).toFixed(1) + '% confidence';
+
+    // Bars (animated via width)
+    document.getElementById('real-pct').textContent = (d.real_prob * 100).toFixed(1) + '%';
+    document.getElementById('fake-pct').textContent = (d.fake_prob * 100).toFixed(1) + '%';
+
+    requestAnimationFrame(() => {
+      document.getElementById('real-bar').style.width = (d.real_prob * 100) + '%';
+      document.getElementById('fake-bar').style.width = (d.fake_prob * 100) + '%';
+    });
+
+    // Meta
+    document.getElementById('meta-ms').textContent =
+      d.inference_ms !== undefined ? d.inference_ms + ' ms' : '—';
+
+    showReset();
+  }
+
+  function showReset() { document.getElementById('btn-reset').style.display = 'block'; }
+
+  function reset() {
+    document.getElementById('drop-zone').style.display = 'block';
+    document.getElementById('preview-wrap').style.display = 'none';
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('btn-reset').style.display = 'none';
+    document.getElementById('file-input').value = '';
+    hideError();
+  }
+
+  function showError(msg) {
+    const el = document.getElementById('error-msg');
+    el.textContent = '⚠ ' + msg;
+    el.style.display = 'block';
+  }
+  function hideError() { document.getElementById('error-msg').style.display = 'none'; }
+</script>
+</body>
+</html>
